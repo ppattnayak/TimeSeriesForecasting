@@ -71,10 +71,9 @@ grid.arrange(uc_ts_plot,c_ts_plot,ncol=1)
 #monthly_sales$cs_Q <- ma(monthly_sales$csales, order =3)
 #ggplot(monthly_sales, aes(DATE,cs_Q)) + geom_line(na.rm=TRUE) + xlab("Month") + ylab("Cleaned Daily Bike Count") + scale_x_date(labels = date_format(format= "%b-%Y"),breaks = date_breaks("3 months"))
 
-#We use this smoothed data for our analysis
+#We use the previously cleaned data for our analysis.
 
 my_ts <- ts(na.omit(monthly_sales$csales), frequency = 12)
-#my_ts <- ts(daily_count_ts, frequency = 365)
 
 plot(my_ts)
 #Seasonality can be removed from the data by which can be removed by taking log transformation
