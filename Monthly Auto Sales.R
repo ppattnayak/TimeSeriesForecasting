@@ -1,10 +1,8 @@
 #load the necessary libaries
 library(ggplot2)
 library(XLConnect)
-library(tidyverse)
 library(forecast)
-library(dplyr)
-library(plyr)
+library(grid)
 library(Amelia)
 library(caTools)
 library(tseries)
@@ -38,15 +36,15 @@ head(monthly_sales)
 
 #Before we proceed, let's check if we have any missing data
 #Amelia library gives us a missmap function that shows the missing details in a visual map
-missmap(monthly_sales)
+missmap(monthly_sales,main = "Missing Values",col = c('light blue','Blue'),x.cex = 1.5)
 
 #Since no missing data is found, we can go ahead with visually plotting the daily count to see if we can identify any trends,
 #seasonality, cycle or outlier from the data.
 
-#Before we plot the count data, we need to convert the dteday field from character to date type
+#Before we plot the count data, we need to convert the DATE field from character to date type
 monthly_sales$DATE <- as.Date(monthly_sales$DATE, "%m/%d/%Y")
 
-#Plot the daily bicycle count
+#Plot the monthly auto sales data
 uc_ts_plot <- ggplot(monthly_sales, aes(DATE,DAUTONSA)) + geom_line(na.rm=TRUE) + xlab("Month") + ylab("Auto Sales in Thousands") + scale_x_date(labels = date_format(format= "%b-%Y"),breaks = date_breaks("1 year")) + stat_smooth(colour = "green")
 uc_ts_plot
 
@@ -54,31 +52,30 @@ uc_ts_plot
 monthly_ts <- ts(monthly_sales[,c('DAUTONSA')])
 monthly_sales$csales <- tsclean(monthly_ts)
 
-#Plot the cleaned daily bicycle count
+#Plot the cleaned sales data
 c_ts_plot <- ggplot(monthly_sales, aes(DATE,csales)) + geom_line(na.rm=TRUE) + xlab("Month") + ylab("Auto Sales in Thousands") + scale_x_date(labels = date_format(format= "%b-%Y"),breaks = date_breaks("1 year")) + stat_smooth(colour="green")
 c_ts_plot
 
-#Compare cleaned and uncleaned plots
-grid.arrange(uc_ts_plot,c_ts_plot,ncol=1)
+#Compare both cleaned and uncleaned plots
+grid.arrange(uc_ts_plot,c_ts_plot,ncol=1, top = textGrob("Uncleaned vs Cleaned Series"))
 
-#If data points are still volatile, then we can apply smoothing smoothing
-#By applying smoothing, we can have a better idea about the series and it's components
-#It also makes the series more predictable
-#in this case, we can use quarterly/biannualy moving average. If the data points are on a daily basis, 
-#any level of seasonality(daily, weekly, monthly or yearly) can be incorporated. 
-#Our data does not require any smoothing
-
+#If data points are still volatile, then we can apply smoothing smoothing. 
+#By applying smoothing, we can have a better idea about the series and it's components. 
+#It also makes the series more predictable. In this case, we could have used quarterly/biannualy moving average. 
+#If the data points are on a daily basis,many level of seasonality(daily, weekly, monthly or yearly) can be incorporated. 
 #monthly_sales$cs_Q <- ma(monthly_sales$csales, order =3)
 #ggplot(monthly_sales, aes(DATE,cs_Q)) + geom_line(na.rm=TRUE) + xlab("Month") + ylab("Cleaned Daily Bike Count") + scale_x_date(labels = date_format(format= "%b-%Y"),breaks = date_breaks("3 months"))
 
+
+#However, looking at the graph, our data does not require any smoothing. Therefore, We go ahead with the cleaned data.
 #We use the previously cleaned data for our analysis.
 
 my_ts <- ts(na.omit(monthly_sales$csales), frequency = 12)
+#As our data is monthly, we used *frequency =12* in above command. We also ignore the NA values.
 
+#Next, we plot the cleaned series to infer visual cues from the graph.
 plot(my_ts)
-#Seasonality can be removed from the data by which can be removed by taking log transformation
-plot(my_ts)
-#Now that the series is smoothed, we need to remove trend by using appropriate order of difference and make the series stationary
+#Now that the series is clean, we need to remove trend by using appropriate order of difference and make the series stationary
 #We do this by looking at acf, Dickey-Fuller Test and standard deviation
 
 Acf(my_ts)
@@ -95,36 +92,36 @@ dfit1 <- arima(my_ts,order = c(0,1,0))
 plot(residuals(dfit1))
 
 par(mfrow=c(2,1))
-Acf(residuals(dfit1))
-Pacf(residuals(dfit1))
+Acf(residuals(dfit1),main="")
+Pacf(residuals(dfit1),main="")
 par(mfrow=c(1,1))
 
 #The differenced series still shows some strong autocorrelation at the seasonal period 12.
 #Because the seasonal pattern is strong and stable, 
 #we know that we will want to use an order of seasonal differencing in the model.
 
-#Before that let's try only with one seasonal difference i.e ARIMA(0,0,0)(0,1,0)
+#Before that let's try only with one seasonal difference i.e ARIMA(0,0,0)(0,1,0)[12]
 dfit2 <- arima(my_ts, order =c(0,0,0), seasonal = list(order = c(0,1,0), period = 12))
 
 plot(residuals(dfit2))
 #Residuals does not look like white noise
 par(mfrow=c(2,1))
-Acf(residuals(dfit2))
-Pacf(residuals(dfit2))
+Acf(residuals(dfit2),main="")
+Pacf(residuals(dfit2),main="")
 par(mfrow=c(1,1))
 
 #The seasonally differenced series shows a very strong pattern of positive autocorrelation and is similar to a seasonal random walk model.
 #This indicates an AR signature or another order of difference.
 
-#Let's go ahead and apply both seasonal and non-seasonal differencing i,e ARIMA(0,1,0)(0,1,0)12
+#Let's go ahead and apply both seasonal and non-seasonal differencing i,e ARIMA(0,1,0)(0,1,0)[12]
 dfit3 <- arima(my_ts, order =c(0,1,0), seasonal = list(order = c(0,1,0), period = 12))
 
 plot(residuals(dfit3))
 
 #Residuals seems to return to the mean and we don't see any pattern in the residuals.
 par(mfrow=c(2,1))
-Acf(residuals(dfit3))
-Pacf(residuals(dfit3))
+Acf(residuals(dfit3),main="")
+Pacf(residuals(dfit3),main="")
 par(mfrow=c(1,1))
 
 #ACF at lag 1 is -ve and slightly smaller than -0.4. We know that if the lag 1 acf falls below -0.5, 
@@ -137,7 +134,7 @@ summary(dfit1)
 summary(dfit2)
 summary(dfit3)
 
-#Out of the above dfit3 model i.e ARIMA(0,1,0)(0,1,0)12 has the lowest standard deviation and AIC.
+#Out of the above dfit3 model i.e ARIMA(0,1,0)(0,1,0)[12] has the lowest standard deviation and AIC.
 #Therefore, it is the correct order of differencing.
 
 #therefore, d=1 and D=1
@@ -150,8 +147,8 @@ plot(residuals(dfit4))
 
 
 par(mfrow=c(2,1))
-Acf(residuals(dfit4))
-Pacf(residuals(dfit4))
+Acf(residuals(dfit4),main="")
+Pacf(residuals(dfit4),main="")
 par(mfrow=c(1,1))
 summary(dfit4)
 
@@ -165,8 +162,8 @@ plot(residuals(dfit5))
 
 
 par(mfrow=c(2,1))
-Acf(residuals(dfit5))
-Pacf(residuals(dfit5))
+Acf(residuals(dfit5),main="")
+Pacf(residuals(dfit5),main="")
 par(mfrow=c(1,1))
 summary(dfit5)
 coeftest(dfit5)
@@ -189,11 +186,11 @@ hold <- window(ts(my_ts), start = 72)
 #fit the model to predict for observation(months) 72 through 83.
 fit_predicted <- arima(ts(my_ts[-c(72:83)]), order =c(0,1,1), seasonal = list(order = c(0,1,0), period = 12))
 
-#Use the above model to forecast values for last 10 months
-forecast_pred <- forecast(fit_predicted,h=24)
+#Use the above model to forecast values for last 10+5 months
+forecast_pred <- forecast(fit_predicted,h=15)
 
 #Plot the predicted values and the validate against the actual data
-plot(forecast_pred, main =" ")
+plot(forecast_pred, main ="Predicted Auto Sales")
 lines(ts(my_ts), col = 'dark red')
 
 #Blue line is the predicted data and the confidence bands are in dark grey(80%) and light grey(95%). 
